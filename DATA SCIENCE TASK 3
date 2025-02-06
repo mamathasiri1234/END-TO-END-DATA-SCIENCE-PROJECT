@@ -1,0 +1,26 @@
+from flask import Flask, request, jsonify
+import numpy as np
+import joblib  # for saving and loading the model
+
+app = Flask(_name_)
+
+# Load the trained model
+model = joblib.load('coding_submission_model.pkl')
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    # Get data from POST request
+    data = request.get_json(force=True)
+    code_length = data['code_length']
+    complexity_score = data['complexity_score']
+    time_taken = data['time_taken']
+    memory_used = data['memory_used']
+
+    # Convert to proper input for the model
+    prediction = model.predict(np.array([[code_length, complexity_score, time_taken, memory_used]]))
+
+    # Return the result
+    return jsonify({'prediction': 'correct' if prediction[0] == 1 else 'incorrect'})
+
+if _name_ == '_main_':
+    app.run(debug=True)
