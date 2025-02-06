@@ -1,26 +1,54 @@
-from flask import Flask, request, jsonify
-import numpy as np
-import joblib  # for saving and loading the model
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
 
-app = Flask(_name_)
+# Load dataset
+url = "https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data"
+columns = ['age', 'workclass', 'fnlwgt', 'education', 'education_num', 'marital_status', 
+           'occupation', 'relationship', 'race', 'sex', 'capital_gain', 'capital_loss', 
+           'hours_per_week', 'native_country', 'income']
+data = pd.read_csv(url, names=columns, sep=',\s', engine='python')
 
-# Load the trained model
-model = joblib.load('coding_submission_model.pkl')
+# Preprocessing
+X = data.drop('income', axis=1)
+y = data['income'].apply(lambda x: 1 if x == '>50K' else 0)  # Binary classification
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    # Get data from POST request
-    data = request.get_json(force=True)
-    code_length = data['code_length']
-    complexity_score = data['complexity_score']
-    time_taken = data['time_taken']
-    memory_used = data['memory_used']
+# Categorical and numerical columns
+categorical_columns = X.select_dtypes(include=['object']).columns
+numerical_columns = X.select_dtypes(exclude=['object']).columns
 
-    # Convert to proper input for the model
-    prediction = model.predict(np.array([[code_length, complexity_score, time_taken, memory_used]]))
+# Preprocessing pipeline
+numerical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='mean')),
+    ('scaler', StandardScaler())
+])
 
-    # Return the result
-    return jsonify({'prediction': 'correct' if prediction[0] == 1 else 'incorrect'})
+categorical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('onehot', OneHotEncoder(handle_unknown='ignore'))
+])
 
-if _name_ == '_main_':
-    app.run(debug=True)
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numerical_transformer, numerical_columns),
+        ('cat', categorical_transformer, categorical_columns)
+    ])
+
+# Model pipeline
+model = Pipeline(steps=[('preprocessor', preprocessor),
+                        ('classifier', RandomForestClassifier(n_estimators=100))])
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train model
+model.fit(X_train, y_train)
+
+# Evaluate model
+y_pred = model.predict(X_test)
+print(f"Accuracy: {accuracy_score(y_test, y_pred)}")
